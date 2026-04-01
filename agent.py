@@ -64,8 +64,11 @@ Hvis alle kilder hadde relevante saker, utelat dette avsnittet.
 """
 
 
+MAX_ITEMS_PER_FEED = 20
+
+
 def fetch_feed(name: str, url: str) -> list[str]:
-    """Henter RSS-feed og returnerer liste med saks-strenger."""
+    """Henter RSS-feed og returnerer liste med saks-strenger (maks MAX_ITEMS_PER_FEED)."""
     try:
         resp = requests.get(url, timeout=10, headers={"User-Agent": "NyhetsagentBot/1.0"})
         resp.raise_for_status()
@@ -99,6 +102,8 @@ def fetch_feed(name: str, url: str) -> list[str]:
             ).strip()
 
             items.append(f"[{name}] {title} | {link} | {pub}")
+            if len(items) >= MAX_ITEMS_PER_FEED:
+                break
 
     except ET.ParseError as e:
         print(f"  [ADVARSEL] {name}: XML-feil: {e}", flush=True)
@@ -130,7 +135,7 @@ def get_news() -> str:
     client = anthropic.Anthropic()
     message = client.messages.create(
         model="claude-opus-4-6",
-        max_tokens=2048,
+        max_tokens=4096,
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
