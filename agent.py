@@ -29,6 +29,7 @@ RSS_FEEDS = {
     "VG":             "https://www.vg.no/rss/feed/",
     "Aftenposten":    "https://www.aftenposten.no/rss/",
     "Dagbladet":      "https://www.dagbladet.no/rss/nyheter",
+    "DN":             "https://services.dn.no/api/feed/rss/",
     "E24":            "https://e24.no/rss/",
     "TV2":            "https://www.tv2.no/rss/nyheter",
     "Dagsavisen":     "https://www.dagsavisen.no/rss",
