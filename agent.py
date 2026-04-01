@@ -79,7 +79,11 @@ def get_news() -> str:
         cwd=str(SCRIPT_DIR),
     )
     if result.returncode != 0:
-        raise RuntimeError(f"Claude feilet:\n{result.stderr}")
+        raise RuntimeError(
+            f"Claude feilet (exit {result.returncode}):\n"
+            f"STDOUT: {result.stdout}\n"
+            f"STDERR: {result.stderr}"
+        )
     data = json.loads(result.stdout)
     return data["result"]
 
