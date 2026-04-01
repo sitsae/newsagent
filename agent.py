@@ -51,7 +51,10 @@ Hvis ingen relevante saker: skriv kun "Ingen relevante saker funnet de siste 12 
 
 USER_PROMPT = (
     "Søk etter norske nyhetssaker fra siste 12 timer som er relevante "
-    "for private helse- og velferdsbedrifter. Bruk websøk for å finne oppdaterte saker."
+    "for private helse- og velferdsbedrifter. "
+    "Bruk WebSearch for generelt søk, og hent forsidene til disse kildene direkte med WebFetch: "
+    "https://www.dagensmedisin.no, https://sykepleien.no, https://fontene.no, "
+    "https://www.nrk.no, https://www.dn.no"
 )
 
 
@@ -61,7 +64,7 @@ def get_news() -> str:
             str(CLAUDE_BIN),
             "-p", USER_PROMPT,
             "--append-system-prompt", SYSTEM_PROMPT,
-            "--allowedTools", "WebSearch",
+            "--allowedTools", "WebSearch,WebFetch",
             "--output-format", "json",
         ],
         capture_output=True,
