@@ -56,7 +56,11 @@ For hver relevant sak, bruk dette formatet:
 _Hvorfor relevant:_ [1–2 setninger]
 
 Inkluder kun saker fra siste 12 timer. Svar på norsk.
-Hvis ingen relevante saker: skriv kun "Ingen relevante saker funnet de siste 12 timene."
+
+Avslutt alltid svaret med et avsnitt som lister opp alle kildene som ble gjennomsøkt men ikke hadde relevante saker, f.eks.:
+"VG, DN og Dagbladet er også gjennomsøkt, men det er ikke funnet relevante saker i feeden."
+
+Hvis alle kilder hadde relevante saker, utelat dette avsnittet.
 """
 
 
@@ -114,10 +118,13 @@ def get_news() -> str:
     if not all_items:
         return "Ingen saker hentet fra RSS-feeds."
 
+    sources = ", ".join(RSS_FEEDS.keys())
     feed_text = "\n".join(all_items)
     user_message = (
-        f"Her er nyhetssaker fra norske medier de siste timene:\n\n{feed_text}\n\n"
-        "Vurder hvilke av disse som er relevante for private helse- og velferdsbedrifter."
+        f"Følgende kilder er gjennomsøkt: {sources}.\n\n"
+        f"Her er nyhetssaker fra disse kildene de siste timene:\n\n{feed_text}\n\n"
+        "Vurder hvilke av disse som er relevante for private helse- og velferdsbedrifter. "
+        "Husk å avslutte med å nevne kildene uten relevante funn."
     )
 
     client = anthropic.Anthropic()
