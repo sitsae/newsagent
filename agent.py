@@ -28,15 +28,14 @@ RSS_FEEDS = {
     "NRK":            "https://www.nrk.no/toppsaker.rss",
     "VG":             "https://www.vg.no/rss/feed/",
     "Aftenposten":    "https://www.aftenposten.no/rss/",
-    "Dagbladet":      "https://www.dagbladet.no/nyheter/atom.xml",
-    "DN":             "https://www.dn.no/feeds/rss.xml",
+    "Dagbladet":      "https://www.dagbladet.no/rss/nyheter",
     "E24":            "https://e24.no/rss/",
-    "TV2":            "https://www.tv2.no/rss/",
-    "Dagsavisen":     "https://www.dagsavisen.no/rss/nyheter.rss",
-    "Dagens Medisin": "https://www.dagensmedisin.no/rss",
+    "TV2":            "https://www.tv2.no/rss/nyheter",
+    "Dagsavisen":     "https://www.dagsavisen.no/rss",
+    "Dagens Medisin": "https://www.dagensmedisin.no/?lab_viewport=rss",
     "Sykepleien":     "https://sykepleien.no/rss.xml",
-    "Fontene":        "https://fontene.no/rss.xml",
-    "Altinget":       "https://www.altinget.no/rss/helse",
+    "Fontene":        "https://fontene.no/lomediarss/fontene/feed",
+    "Altinget":       "https://www.altinget.no/helse/rss",
 }
 
 SYSTEM_PROMPT = """Du er en nyhetsagent som vurderer om nyhetssaker er relevante for private helse- og velferdsbedrifter i Norge.
