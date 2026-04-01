@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 """
-Nyhetsagent: søker norske medier for saker relevante for
-private helse- og velferdsbedrifter, sender e-postoppsummering.
+Nyhetsagent: henter RSS-feeds fra norske medier, sender innholdet til
+Claude via Anthropic SDK for relevansvurdering, og e-poster resultatet.
 """
 
-import json
 import os
 import smtplib
-import subprocess
 import sys
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
 
+import anthropic
+import requests
 from dotenv import load_dotenv
 
 SCRIPT_DIR = Path(__file__).parent
@@ -22,12 +23,23 @@ load_dotenv(SCRIPT_DIR / ".env")
 GMAIL_USER = os.environ["GMAIL_USER"]
 GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 
-CLAUDE_BIN = (
-    Path.home()
-    / "Library/Application Support/Claude/claude-code/2.1.87/claude.app/Contents/MacOS/claude"
-)
+# RSS-feeds fra norske medier
+RSS_FEEDS = {
+    "NRK":            "https://www.nrk.no/toppsaker.rss",
+    "VG":             "https://www.vg.no/rss/feed/",
+    "Aftenposten":    "https://www.aftenposten.no/rss/",
+    "Dagbladet":      "https://www.dagbladet.no/nyheter/atom.xml",
+    "DN":             "https://www.dn.no/feeds/rss.xml",
+    "E24":            "https://e24.no/rss/",
+    "TV2":            "https://www.tv2.no/rss/",
+    "Dagsavisen":     "https://www.dagsavisen.no/rss/nyheter.rss",
+    "Dagens Medisin": "https://www.dagensmedisin.no/rss",
+    "Sykepleien":     "https://sykepleien.no/rss.xml",
+    "Fontene":        "https://fontene.no/rss.xml",
+    "Altinget":       "https://www.altinget.no/rss/helse",
+}
 
-SYSTEM_PROMPT = """Du er en nyhetsagent som overvåker norske medier for saker relevante for private helse- og velferdsbedrifter.
+SYSTEM_PROMPT = """Du er en nyhetsagent som vurderer om nyhetssaker er relevante for private helse- og velferdsbedrifter i Norge.
 
 Relevante bransjer: barnehager, barnevern, rusbehandling, psykisk helsevern, sykehjem, hjemmetjenester, rehabilitering, legemidler, medisinsk utstyr, treningssenter, sykehus, arbeidsmarkedstiltak (NAV-leverandører), bedriftshelsetjeneste, tannhelse, digitale helsetjenester.
 
@@ -38,8 +50,6 @@ Relevante temaer:
 - Bransjehendelser: konkurser, oppkjøp, nye aktører
 - Meninger, kronikker og politikeruttalelser som signaliserer retningsendringer
 
-Søk på: VG, NRK, Aftenposten, Dagbladet, Dagens Næringsliv, E24, Dagens Medisin, Sykepleien, Fontene, Dagsavisen, Klassekampen, TV2, Medwatch, Altinget.no, .
-
 For hver relevant sak, bruk dette formatet:
 **[Tittel]** — [Kilde], [dato]
 [URL]
@@ -49,43 +59,75 @@ Inkluder kun saker fra siste 12 timer. Svar på norsk.
 Hvis ingen relevante saker: skriv kun "Ingen relevante saker funnet de siste 12 timene."
 """
 
-USER_PROMPT = (
-    "Søk etter norske nyhetssaker fra siste 12 timer som er relevante "
-    "for private helse- og velferdsbedrifter. "
-    "Bruk WebSearch for generelt søk, og hent forsidene til disse kildene direkte med WebFetch: "
-    "https://www.dagensmedisin.no, https://sykepleien.no, https://fontene.no, "
-    "https://www.nrk.no, https://www.dn.no"
-)
+
+def fetch_feed(name: str, url: str) -> list[str]:
+    """Henter RSS-feed og returnerer liste med saks-strenger."""
+    try:
+        resp = requests.get(url, timeout=10, headers={"User-Agent": "NyhetsagentBot/1.0"})
+        resp.raise_for_status()
+    except Exception as e:
+        print(f"  [ADVARSEL] {name}: {e}", flush=True)
+        return []
+
+    items = []
+
+    try:
+        root = ET.fromstring(resp.content)
+        # Støtter både RSS og Atom
+        ns = {"atom": "http://www.w3.org/2005/Atom"}
+        entries = root.findall(".//item") or root.findall(".//atom:entry", ns)
+
+        for entry in entries:
+            title = (
+                entry.findtext("title")
+                or entry.findtext("atom:title", namespaces=ns)
+                or ""
+            ).strip()
+            link = (
+                entry.findtext("link")
+                or (entry.find("atom:link", ns) or {}).get("href", "")
+                or ""
+            ).strip()
+            pub = (
+                entry.findtext("pubDate")
+                or entry.findtext("atom:updated", namespaces=ns)
+                or ""
+            ).strip()
+
+            items.append(f"[{name}] {title} | {link} | {pub}")
+
+    except ET.ParseError as e:
+        print(f"  [ADVARSEL] {name}: XML-feil: {e}", flush=True)
+
+    return items
 
 
 def get_news() -> str:
-    # GitHub Actions: ANTHROPIC_API_KEY er satt → bruk claude --bare fra PATH
-    # Lokalt: bruk installert Claude-app
-    if os.environ.get("ANTHROPIC_API_KEY"):
-        binary = ["claude", "--bare"]
-    else:
-        binary = [str(CLAUDE_BIN)]
+    """Henter RSS-feeds og sender til Claude for relevansvurdering."""
+    print("  Henter RSS-feeds...", flush=True)
+    all_items = []
+    for name, url in RSS_FEEDS.items():
+        items = fetch_feed(name, url)
+        all_items.extend(items)
+        print(f"  {name}: {len(items)} saker", flush=True)
 
-    result = subprocess.run(
-        [
-            *binary,
-            "-p", USER_PROMPT,
-            "--append-system-prompt", SYSTEM_PROMPT,
-            "--allowedTools", "WebSearch,WebFetch",
-            "--output-format", "json",
-        ],
-        capture_output=True,
-        text=True,
-        cwd=str(SCRIPT_DIR),
+    if not all_items:
+        return "Ingen saker hentet fra RSS-feeds."
+
+    feed_text = "\n".join(all_items)
+    user_message = (
+        f"Her er nyhetssaker fra norske medier de siste timene:\n\n{feed_text}\n\n"
+        "Vurder hvilke av disse som er relevante for private helse- og velferdsbedrifter."
     )
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"Claude feilet (exit {result.returncode}):\n"
-            f"STDOUT: {result.stdout}\n"
-            f"STDERR: {result.stderr}"
-        )
-    data = json.loads(result.stdout)
-    return data["result"]
+
+    client = anthropic.Anthropic()
+    message = client.messages.create(
+        model="claude-opus-4-6",
+        max_tokens=2048,
+        system=SYSTEM_PROMPT,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    return message.content[0].text
 
 
 def load_recipients() -> list[str]:
@@ -144,7 +186,7 @@ def main() -> None:
         log("Ingen mottakere i recipients.txt — avslutter.")
         sys.exit(1)
 
-    log("Søker etter nyheter med Claude + WebSearch...")
+    log("Søker etter nyheter via RSS + Claude API...")
     news = get_news()
     log(f"Svar mottatt ({len(news)} tegn). Sender e-post til {recipients}...")
     send_email(recipients, news, now)
