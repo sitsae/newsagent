@@ -1,0 +1,40 @@
+name: Nyhetsagent
+
+on:
+  schedule:
+    # 10:00 Oslo-tid (CEST = UTC+2, gjeldende mars–oktober)
+    - cron: '0 8 * * *'
+    # 14:00 Oslo-tid (CEST = UTC+2)
+    - cron: '0 12 * * *'
+  workflow_dispatch: # Tillat manuell kjøring fra GitHub
+
+jobs:
+  send-news:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Sjekk ut kode
+        uses: actions/checkout@v4
+
+      - name: Sett opp Node.js (for Claude CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Installer Claude CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Sett opp Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Installer Python-avhengigheter
+        run: pip install -r requirements.txt
+
+      - name: Kjør nyhetsagent
+        run: python agent.py
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}

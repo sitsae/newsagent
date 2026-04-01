@@ -29,7 +29,7 @@ CLAUDE_BIN = (
 
 SYSTEM_PROMPT = """Du er en nyhetsagent som overvåker norske medier for saker relevante for private helse- og velferdsbedrifter.
 
-Relevante bransjer: barnehager, barnevern, rusbehandling, psykisk helsevern, sykehjem, hjemmetjenester, rehabilitering, arbeidsmarkedstiltak (NAV-leverandører).
+Relevante bransjer: barnehager, barnevern, rusbehandling, psykisk helsevern, sykehjem, hjemmetjenester, rehabilitering, legemidler, medisinsk utstyr, treningssenter, sykehus, arbeidsmarkedstiltak (NAV-leverandører), bedriftshelsetjeneste, tannhelse, digitale helsetjenester.
 
 Relevante temaer:
 - Politiske vedtak og lovforslag fra Stortinget eller kommuner
@@ -38,7 +38,7 @@ Relevante temaer:
 - Bransjehendelser: konkurser, oppkjøp, nye aktører
 - Meninger, kronikker og politikeruttalelser som signaliserer retningsendringer
 
-Søk på: VG, NRK, Aftenposten, Dagbladet, Dagens Næringsliv, E24, Dagens Medisin, Sykepleien, Fontene, Dagsavisen, Klassekampen, TV2.
+Søk på: VG, NRK, Aftenposten, Dagbladet, Dagens Næringsliv, E24, Dagens Medisin, Sykepleien, Fontene, Dagsavisen, Klassekampen, TV2, Medwatch, Altinget.no, .
 
 For hver relevant sak, bruk dette formatet:
 **[Tittel]** — [Kilde], [dato]
@@ -59,9 +59,16 @@ USER_PROMPT = (
 
 
 def get_news() -> str:
+    # GitHub Actions: ANTHROPIC_API_KEY er satt → bruk claude --bare fra PATH
+    # Lokalt: bruk installert Claude-app
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        binary = ["claude", "--bare"]
+    else:
+        binary = [str(CLAUDE_BIN)]
+
     result = subprocess.run(
         [
-            str(CLAUDE_BIN),
+            *binary,
             "-p", USER_PROMPT,
             "--append-system-prompt", SYSTEM_PROMPT,
             "--allowedTools", "WebSearch,WebFetch",
