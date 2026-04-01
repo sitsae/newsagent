@@ -24,7 +24,7 @@ GMAIL_APP_PASSWORD = os.environ["GMAIL_APP_PASSWORD"]
 
 CLAUDE_BIN = (
     Path.home()
-    / "Library/Application Support/Claude/claude-code-vm/2.1.87/claude"
+    / "Library/Application Support/Claude/claude-code/2.1.87/claude.app/Contents/MacOS/claude"
 )
 
 SYSTEM_PROMPT = """Du er en nyhetsagent som overvåker norske medier for saker relevante for private helse- og velferdsbedrifter.
