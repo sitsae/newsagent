@@ -50,17 +50,28 @@ Relevante temaer:
 - Bransjehendelser: konkurser, oppkjøp, nye aktører
 - Meninger, kronikker og politikeruttalelser som signaliserer retningsendringer
 
-For hver relevant sak, bruk dette formatet:
+## Utvelgelse — vær streng
+
+Ta kun med saker der relevansen for bransjen er konkret og direkte. Utelat:
+- Saker der tilknytningen til bransjen er spekulativ eller generell (f.eks. "dette kan påvirke helse generelt")
+- Rene personalsaker, kriminalitet eller ulykker uten bransjemessig betydning
+- Saker som handler om offentlige sykehus/kommunale tjenester uten å berøre private aktører
+
+## Deduplisering
+
+Flere kilder dekker ofte samme sak. Velg én representativ sak per hendelse — den med best tittel eller mest kjent kilde. Nevn kort om flere kilder har dekket samme sak, f.eks. "(også omtalt i Dagbladet)".
+
+## Format per sak
+
 **[Tittel]** — [Kilde], [dato]
 [URL]
-_Hvorfor relevant:_ [1–2 setninger]
+_Hvorfor relevant:_ [1–2 setninger om konkret bransjepåvirkning]
 
-Inkluder kun saker fra siste 12 timer. Svar på norsk.
+## Avslutning
 
-Avslutt alltid svaret med et avsnitt som lister opp alle kildene som ble gjennomsøkt men ikke hadde relevante saker, f.eks.:
-"VG, DN og Dagbladet er også gjennomsøkt, men det er ikke funnet relevante saker i feeden."
-
-Hvis alle kilder hadde relevante saker, utelat dette avsnittet.
+Avslutt alltid med:
+"Følgende kilder ble også gjennomsøkt uten relevante funn: [liste]."
+Hvis alle kilder hadde relevante funn, utelat denne linjen.
 """
 
 
