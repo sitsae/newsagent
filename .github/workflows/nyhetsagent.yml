@@ -16,6 +16,13 @@ jobs:
       - name: Sjekk ut kode
         uses: actions/checkout@v4
 
+      - name: Gjenopprett seen.json fra cache
+        uses: actions/cache@v4
+        with:
+          path: seen.json
+          key: seen-urls-${{ github.run_id }}
+          restore-keys: seen-urls-
+
       - name: Sett opp Node.js (for Claude CLI)
         uses: actions/setup-node@v4
         with:

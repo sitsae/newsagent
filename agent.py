@@ -4,11 +4,12 @@ Nyhetsagent: henter RSS-feeds fra norske medier, sender innholdet til
 Claude via Anthropic SDK for relevansvurdering, og e-poster resultatet.
 """
 
+import json
 import os
 import smtplib
 import sys
 import xml.etree.ElementTree as ET
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -76,6 +77,26 @@ Hvis alle kilder hadde relevante funn, utelat denne linjen.
 
 
 MAX_ITEMS_PER_FEED = 20
+SEEN_FILE = SCRIPT_DIR / "seen.json"
+SEEN_MAX_AGE_HOURS = 48
+
+
+def load_seen() -> set[str]:
+    """Laster inn URL-er som allerede er sendt. Kaster ut oppføringer eldre enn 48 timer."""
+    if not SEEN_FILE.exists():
+        return set()
+    data = json.loads(SEEN_FILE.read_text(encoding="utf-8"))
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=SEEN_MAX_AGE_HOURS)).isoformat()
+    return {url for url, ts in data.items() if ts >= cutoff}
+
+
+def save_seen(seen: set[str]) -> None:
+    now = datetime.now(timezone.utc).isoformat()
+    existing = {}
+    if SEEN_FILE.exists():
+        existing = json.loads(SEEN_FILE.read_text(encoding="utf-8"))
+    existing.update({url: now for url in seen})
+    SEEN_FILE.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
 def fetch_feed(name: str, url: str) -> list[str]:
@@ -122,17 +143,30 @@ def fetch_feed(name: str, url: str) -> list[str]:
     return items
 
 
-def get_news() -> str:
-    """Henter RSS-feeds og sender til Claude for relevansvurdering."""
+def get_news(seen: set[str]) -> tuple[str, set[str]]:
+    """Henter RSS-feeds, filtrerer bort sett saker, sender til Claude.
+    Returnerer (svar, nye_urls)."""
     print("  Henter RSS-feeds...", flush=True)
     all_items = []
+    new_urls: set[str] = set()
+
     for name, url in RSS_FEEDS.items():
         items = fetch_feed(name, url)
-        all_items.extend(items)
-        print(f"  {name}: {len(items)} saker", flush=True)
+        new_items = []
+        for item in items:
+            # URL er andre felt i "| "-separert streng
+            parts = item.split(" | ")
+            item_url = parts[1] if len(parts) > 1 else ""
+            if item_url and item_url in seen:
+                continue
+            new_items.append(item)
+            if item_url:
+                new_urls.add(item_url)
+        all_items.extend(new_items)
+        print(f"  {name}: {len(new_items)} nye saker ({len(items) - len(new_items)} filtrert)", flush=True)
 
     if not all_items:
-        return "Ingen saker hentet fra RSS-feeds."
+        return "Ingen nye saker siden forrige utsending.", new_urls
 
     sources = ", ".join(RSS_FEEDS.keys())
     feed_text = "\n".join(all_items)
@@ -150,7 +184,7 @@ def get_news() -> str:
         system=SYSTEM_PROMPT,
         messages=[{"role": "user", "content": user_message}],
     )
-    return message.content[0].text
+    return message.content[0].text, new_urls
 
 
 def load_recipients() -> list[str]:
@@ -209,11 +243,13 @@ def main() -> None:
         log("Ingen mottakere i recipients.txt — avslutter.")
         sys.exit(1)
 
-    log("Søker etter nyheter via RSS + Claude API...")
-    news = get_news()
+    seen = load_seen()
+    log(f"Søker etter nyheter via RSS + Claude API... ({len(seen)} URL-er filtrert fra tidligere)")
+    news, new_urls = get_news(seen)
     log(f"Svar mottatt ({len(news)} tegn). Sender e-post til {recipients}...")
     send_email(recipients, news, now)
-    log("E-post sendt.")
+    save_seen(new_urls)
+    log(f"E-post sendt. {len(new_urls)} nye URL-er lagret i seen.json.")
 
 
 if __name__ == "__main__":
