@@ -99,8 +99,22 @@ def save_seen(seen: set[str]) -> None:
     SEEN_FILE.write_text(json.dumps(existing, indent=2), encoding="utf-8")
 
 
+def parse_pub_date(raw: str) -> datetime | None:
+    """Parser RSS (RFC 2822) og Atom (ISO 8601) datoformater."""
+    from email.utils import parsedate_to_datetime
+    for fn in (parsedate_to_datetime, datetime.fromisoformat):
+        try:
+            dt = fn(raw)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            return dt
+        except Exception:
+            continue
+    return None
+
+
 def fetch_feed(name: str, url: str) -> list[str]:
-    """Henter RSS-feed og returnerer liste med saks-strenger (maks MAX_ITEMS_PER_FEED)."""
+    """Henter RSS-feed og returnerer saker ikke eldre enn 48 timer (maks MAX_ITEMS_PER_FEED)."""
     try:
         resp = requests.get(url, timeout=10, headers={"User-Agent": "NyhetsagentBot/1.0"})
         resp.raise_for_status()
@@ -108,11 +122,11 @@ def fetch_feed(name: str, url: str) -> list[str]:
         print(f"  [ADVARSEL] {name}: {e}", flush=True)
         return []
 
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
     items = []
 
     try:
         root = ET.fromstring(resp.content)
-        # Støtter både RSS og Atom
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         entries = root.findall(".//item") or root.findall(".//atom:entry", ns)
 
@@ -132,6 +146,10 @@ def fetch_feed(name: str, url: str) -> list[str]:
                 or entry.findtext("atom:updated", namespaces=ns)
                 or ""
             ).strip()
+
+            dt = parse_pub_date(pub)
+            if dt and dt < cutoff:
+                break  # RSS-feeds er kronologiske — resten er eldre
 
             items.append(f"[{name}] {title} | {link} | {pub}")
             if len(items) >= MAX_ITEMS_PER_FEED:
