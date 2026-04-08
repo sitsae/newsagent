@@ -44,8 +44,6 @@ RSS_FEEDS = {
 }
 
 MAX_ITEMS_PER_FEED = 20
-SEEN_FILE = SCRIPT_DIR / "seen.json"
-SEEN_MAX_AGE_HOURS = 48
 
 SYSTEM_PROMPT = """Du er en nyhetsagent som vurderer om nyhetssaker er relevante for private helse- og velferdsbedrifter i Norge.
 
@@ -95,23 +93,6 @@ TOOL = {
 }
 
 
-# --- seen.json-håndtering ---
-
-def load_seen() -> set[str]:
-    if not SEEN_FILE.exists():
-        return set()
-    data = json.loads(SEEN_FILE.read_text(encoding="utf-8"))
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=SEEN_MAX_AGE_HOURS)).isoformat()
-    return {url for url, ts in data.items() if ts >= cutoff}
-
-
-def save_seen(urls: set[str]) -> None:
-    now = datetime.now(timezone.utc).isoformat()
-    existing = json.loads(SEEN_FILE.read_text(encoding="utf-8")) if SEEN_FILE.exists() else {}
-    existing.update({url: now for url in urls})
-    SEEN_FILE.write_text(json.dumps(existing, indent=2), encoding="utf-8")
-
-
 # --- RSS-henting ---
 
 def parse_pub_date(raw: str) -> datetime | None:
@@ -134,7 +115,7 @@ def fetch_feed(name: str, url: str) -> list[dict]:
         print(f"  [ADVARSEL] {name}: {e}", flush=True)
         return []
 
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=48)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=24)
     items = []
 
     try:
@@ -314,20 +295,16 @@ def main() -> None:
         log("Ingen mottakere i recipients.txt — avslutter.")
         sys.exit(1)
 
-    seen = load_seen()
-    log(f"Henter RSS-feeds... ({len(seen)} URL-er filtrert fra tidligere)")
+    log("Henter RSS-feeds (siste 24 timer)...")
 
     all_articles: list[dict] = []
-    new_urls: set[str] = set()
     for name, url in RSS_FEEDS.items():
         articles = fetch_feed(name, url)
-        new = [a for a in articles if a["url"] not in seen]
-        all_articles.extend(new)
-        new_urls.update(a["url"] for a in new)
-        print(f"  {name}: {len(new)} nye ({len(articles) - len(new)} filtrert)", flush=True)
+        all_articles.extend(articles)
+        print(f"  {name}: {len(articles)} saker", flush=True)
 
     if not all_articles:
-        log("Ingen nye saker siden forrige utsending — avslutter uten å sende.")
+        log("Ingen saker funnet — avslutter uten å sende.")
         return
 
     log(f"Sender {len(all_articles)} saker til Claude for vurdering...")
@@ -336,8 +313,7 @@ def main() -> None:
     log(f"Claude valgte {n_relevant} relevante saker. Sender e-post til {recipients}...")
 
     send_email(recipients, result, now)
-    save_seen(new_urls)
-    log(f"E-post sendt. {len(new_urls)} URL-er lagret i seen.json.")
+    log("E-post sendt.")
 
 
 if __name__ == "__main__":

@@ -2,10 +2,8 @@ name: Nyhetsagent
 
 on:
   schedule:
-    # 10:00 Oslo-tid (CEST = UTC+2, gjeldende mars–oktober)
-    - cron: '0 8 * * *'
-    # 14:00 Oslo-tid (CEST = UTC+2)
-    - cron: '0 12 * * *'
+    # 09:00 Oslo-tid (CEST = UTC+2, gjeldende mars–oktober)
+    - cron: '0 7 * * *'
   workflow_dispatch: # Tillat manuell kjøring fra GitHub
 
 jobs:

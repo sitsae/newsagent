@@ -12,18 +12,12 @@
     <string>/Users/sigurd/ClaudeAgent/run.sh</string>
   </array>
 
-  <!-- Kjører kl. 10:00 og 14:00 hver dag (lokal tid / Oslo) -->
+  <!-- Kjører kl. 09:00 hver dag (lokal tid / Oslo) -->
   <key>StartCalendarInterval</key>
-  <array>
-    <dict>
-      <key>Hour</key><integer>10</integer>
-      <key>Minute</key><integer>0</integer>
-    </dict>
-    <dict>
-      <key>Hour</key><integer>14</integer>
-      <key>Minute</key><integer>0</integer>
-    </dict>
-  </array>
+  <dict>
+    <key>Hour</key><integer>9</integer>
+    <key>Minute</key><integer>0</integer>
+  </dict>
 
   <key>RunAtLoad</key>
   <false/>
