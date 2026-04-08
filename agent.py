@@ -129,11 +129,30 @@ def fetch_feed(name: str, url: str) -> list[dict]:
         ns = {"atom": "http://www.w3.org/2005/Atom"}
         entries = root.findall(".//item") or root.findall(".//atom:entry", ns)
 
+        media_ns = {**ns, "media": "http://search.yahoo.com/mrss/"}
+
         for entry in entries:
             title = (entry.findtext("title") or entry.findtext("atom:title", namespaces=ns) or "").strip()
             link  = (entry.findtext("link")  or (entry.find("atom:link", ns) or {}).get("href", "") or "").strip()
             pub   = (entry.findtext("pubDate") or entry.findtext("atom:updated", namespaces=ns) or "").strip()
             desc  = (entry.findtext("description") or entry.findtext("atom:summary", namespaces=ns) or "").strip()
+
+            # Bilde: prøv media:content → media:thumbnail → enclosure → første <img> i desc
+            image_url = ""
+            for tag in ("media:content", "media:thumbnail"):
+                el = entry.find(tag, media_ns)
+                if el is not None:
+                    image_url = el.get("url", "")
+                    if image_url:
+                        break
+            if not image_url:
+                enc = entry.find("enclosure")
+                if enc is not None and "image" in enc.get("type", ""):
+                    image_url = enc.get("url", "")
+            if not image_url:
+                m = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', desc)
+                if m:
+                    image_url = m.group(1)
 
             # Fjern HTML-tagger fra ingress (fallback til regex ved parse-feil)
             if desc:
@@ -146,7 +165,8 @@ def fetch_feed(name: str, url: str) -> list[dict]:
             if dt and dt < cutoff:
                 break
 
-            items.append({"source": name, "title": title, "url": link, "pub_date": pub, "ingress": desc[:200]})
+            items.append({"source": name, "title": title, "url": link, "pub_date": pub,
+                          "ingress": desc[:200], "image_url": image_url})
             if len(items) >= MAX_ITEMS_PER_FEED:
                 break
 
@@ -210,22 +230,27 @@ def find_relevant(articles: list[dict]) -> dict:
 
 # --- E-postformatering ---
 
-def build_html(result: dict, timestamp: datetime) -> str:
+def build_html(result: dict, timestamp: datetime, images: dict[str, str] | None = None) -> str:
     saker = result.get("saker", [])
     kilder_uten_funn = result.get("kilder_uten_funn", [])
     dato = timestamp.strftime("%-d. %B %Y, kl. %H:%M")
+    images = images or {}
 
     if not saker:
-        artikler_html = "<p><em>Ingen relevante saker funnet siden forrige utsending.</em></p>"
+        artikler_html = "<p><em>Ingen relevante saker funnet de siste 24 timene.</em></p>"
     else:
         artikler = []
         for s in saker:
             også = ""
             if s.get("også_omtalt_i"):
                 også = f" <span style='color:#7f8c8d;font-size:.9em'>(også omtalt i {', '.join(s['også_omtalt_i'])})</span>"
+            img_html = ""
+            img_url = images.get(s.get("url", ""))
+            if img_url:
+                img_html = f'<a href="{s["url"]}"><img src="{img_url}" alt="" style="width:100%;max-width:600px;height:180px;object-fit:cover;border-radius:4px;display:block;margin-bottom:8px"></a>'
             artikler.append(f"""
-  <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid #ecf0f1">
-    <p style="margin:0 0 4px">
+  <div style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid #ecf0f1">
+    {img_html}<p style="margin:0 0 4px">
       <a href="{s['url']}" style="color:#2c3e50;font-weight:bold;text-decoration:none">{s['tittel']}</a>
     </p>
     <p style="margin:0 0 6px;color:#7f8c8d;font-size:.85em">{s['kilde']} · {s['publisert']}{også}</p>
@@ -270,14 +295,14 @@ def load_recipients() -> list[str]:
     return [l.strip() for l in lines if l.strip() and not l.startswith("#")]
 
 
-def send_email(recipients: list[str], result: dict, timestamp: datetime) -> None:
+def send_email(recipients: list[str], result: dict, timestamp: datetime, images: dict[str, str]) -> None:
     subject = f"Nyheter helse/velferd — {timestamp.strftime('%d.%m.%Y %H:%M')}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = GMAIL_USER
     msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(build_plain(result, timestamp), "plain", "utf-8"))
-    msg.attach(MIMEText(build_html(result, timestamp), "html", "utf-8"))
+    msg.attach(MIMEText(build_html(result, timestamp, images), "html", "utf-8"))
     with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
         smtp.starttls()
         smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
@@ -301,7 +326,10 @@ def main() -> None:
     for name, url in RSS_FEEDS.items():
         articles = fetch_feed(name, url)
         all_articles.extend(articles)
-        print(f"  {name}: {len(articles)} saker", flush=True)
+        n_img = sum(1 for a in articles if a.get("image_url"))
+        print(f"  {name}: {len(articles)} saker ({n_img} med bilde)", flush=True)
+
+    images = {a["url"]: a["image_url"] for a in all_articles if a.get("image_url")}
 
     if not all_articles:
         log("Ingen saker funnet — avslutter uten å sende.")
@@ -312,7 +340,7 @@ def main() -> None:
     n_relevant = len(result.get("saker", []))
     log(f"Claude valgte {n_relevant} relevante saker. Sender e-post til {recipients}...")
 
-    send_email(recipients, result, now)
+    send_email(recipients, result, now, images)
     log("E-post sendt.")
 
 
