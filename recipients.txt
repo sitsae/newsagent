@@ -1,4 +1,4 @@
 # E-postmottakere — én adresse per linje
 # Linjer som starter med # ignoreres
 torve_s@live.no
-lenaveriksen@gmail.com
+# lenaveriksen@gmail.com
