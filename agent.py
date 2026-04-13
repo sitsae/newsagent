@@ -45,6 +45,21 @@ RSS_FEEDS = {
 
 MAX_ITEMS_PER_FEED = 20
 
+SOURCE_LOGOS = {
+    "NRK":            "https://logo.clearbit.com/nrk.no",
+    "VG":             "https://logo.clearbit.com/vg.no",
+    "Aftenposten":    "https://logo.clearbit.com/aftenposten.no",
+    "Dagbladet":      "https://logo.clearbit.com/dagbladet.no",
+    "DN":             "https://logo.clearbit.com/dn.no",
+    "E24":            "https://logo.clearbit.com/e24.no",
+    "TV2":            "https://logo.clearbit.com/tv2.no",
+    "Dagsavisen":     "https://logo.clearbit.com/dagsavisen.no",
+    "Dagens Medisin": "https://logo.clearbit.com/dagensmedisin.no",
+    "Sykepleien":     "https://logo.clearbit.com/sykepleien.no",
+    "Fontene":        "https://logo.clearbit.com/fontene.no",
+    "Altinget":       "https://logo.clearbit.com/altinget.no",
+}
+
 SYSTEM_PROMPT = """Du er en nyhetsagent som vurderer om nyhetssaker er relevante for private helse- og velferdsbedrifter i Norge.
 
 Relevante bransjer: barnehager, barnevern, rusbehandling, psykisk helsevern, sykehjem, hjemmetjenester, rehabilitering, arbeidsmarkedstiltak (NAV-leverandører), bedriftshelsetjeneste, tannhelse, digitale helsetjenester.
@@ -72,14 +87,13 @@ TOOL = {
                 "items": {
                     "type": "object",
                     "properties": {
-                        "tittel":          {"type": "string"},
-                        "kilde":           {"type": "string"},
-                        "url":             {"type": "string"},
-                        "publisert":       {"type": "string"},
-                        "hvorfor_relevant": {"type": "string", "description": "1–2 setninger"},
-                        "også_omtalt_i":  {"type": "array", "items": {"type": "string"}},
+                        "tittel":         {"type": "string"},
+                        "kilde":          {"type": "string"},
+                        "url":            {"type": "string"},
+                        "publisert":      {"type": "string"},
+                        "også_omtalt_i": {"type": "array", "items": {"type": "string"}},
                     },
-                    "required": ["tittel", "kilde", "url", "publisert", "hvorfor_relevant"],
+                    "required": ["tittel", "kilde", "url", "publisert"],
                 },
             },
             "kilder_uten_funn": {
@@ -211,7 +225,7 @@ def find_relevant(articles: list[dict]) -> dict:
     # Fallback: bruk installert claude-binær (lokal maskin uten API-nøkkel)
     CLAUDE_BIN = (
         Path.home()
-        / "Library/Application Support/Claude/claude-code/2.1.87/claude.app/Contents/MacOS/claude"
+        / "Library/Application Support/Claude/claude-code/2.1.92/claude.app/Contents/MacOS/claude"
     )
     result = subprocess.run(
         [
@@ -230,11 +244,12 @@ def find_relevant(articles: list[dict]) -> dict:
 
 # --- E-postformatering ---
 
-def build_html(result: dict, timestamp: datetime, images: dict[str, str] | None = None) -> str:
+def build_html(result: dict, timestamp: datetime, images: dict[str, str] | None = None, ingreses: dict[str, str] | None = None) -> str:
     saker = result.get("saker", [])
     kilder_uten_funn = result.get("kilder_uten_funn", [])
     dato = timestamp.strftime("%-d. %B %Y, kl. %H:%M")
     images = images or {}
+    ingreses = ingreses or {}
 
     if not saker:
         artikler_html = "<p><em>Ingen relevante saker funnet de siste 24 timene.</em></p>"
@@ -244,17 +259,23 @@ def build_html(result: dict, timestamp: datetime, images: dict[str, str] | None 
             også = ""
             if s.get("også_omtalt_i"):
                 også = f" <span style='color:#7f8c8d;font-size:.9em'>(også omtalt i {', '.join(s['også_omtalt_i'])})</span>"
-            img_html = ""
-            img_url = images.get(s.get("url", ""))
+            url = s.get("url", "")
+            kilde = s.get("kilde", "")
+            img_url = images.get(url)
+            logo_url = SOURCE_LOGOS.get(kilde, "")
             if img_url:
-                img_html = f'<a href="{s["url"]}"><img src="{img_url}" alt="" style="width:100%;max-width:600px;height:180px;object-fit:cover;border-radius:4px;display:block;margin-bottom:8px"></a>'
+                img_html = f'<a href="{url}"><img src="{img_url}" alt="" style="width:100%;max-width:600px;height:180px;object-fit:cover;border-radius:4px;display:block;margin-bottom:8px"></a>'
+            else:
+                img_html = f'<a href="{url}"><div style="width:100%;height:180px;background:#f0f3f7;border-radius:4px;display:flex;align-items:center;justify-content:center;margin-bottom:8px"><img src="{logo_url}" alt="{kilde}" style="max-height:60px;max-width:200px;object-fit:contain"></div></a>'
+            ingress = ingreses.get(s.get("url", ""), "")
+            ingress_html = f'<p style="margin:4px 0 0;font-size:.9em;color:#666">{ingress}</p>' if ingress else ""
             artikler.append(f"""
   <div style="margin-bottom:24px;padding-bottom:24px;border-bottom:1px solid #ecf0f1">
     {img_html}<p style="margin:0 0 4px">
       <a href="{s['url']}" style="color:#2c3e50;font-weight:bold;text-decoration:none">{s['tittel']}</a>
     </p>
-    <p style="margin:0 0 6px;color:#7f8c8d;font-size:.85em">{s['kilde']} · {s['publisert']}{også}</p>
-    <p style="margin:0;font-size:.95em;color:#555">{s['hvorfor_relevant']}</p>
+    <p style="margin:0 0 4px;color:#7f8c8d;font-size:.85em">{s['kilde']} · {s['publisert']}{også}</p>
+    {ingress_html}
   </div>""")
         artikler_html = "\n".join(artikler)
 
@@ -281,7 +302,7 @@ def build_plain(result: dict, timestamp: datetime) -> str:
         lines.append("Ingen relevante saker funnet siden forrige utsending.")
     else:
         for s in saker:
-            lines += [s["tittel"], f"{s['kilde']} · {s['publisert']}", s["url"], s["hvorfor_relevant"], ""]
+            lines += [s["tittel"], f"{s['kilde']} · {s['publisert']}", s["url"], ""]
     kilder_uten_funn = result.get("kilder_uten_funn", [])
     if kilder_uten_funn:
         lines.append(f"Også gjennomsøkt uten relevante funn: {', '.join(kilder_uten_funn)}.")
@@ -295,14 +316,14 @@ def load_recipients() -> list[str]:
     return [l.strip() for l in lines if l.strip() and not l.startswith("#")]
 
 
-def send_email(recipients: list[str], result: dict, timestamp: datetime, images: dict[str, str]) -> None:
+def send_email(recipients: list[str], result: dict, timestamp: datetime, images: dict[str, str], ingreses: dict[str, str]) -> None:
     subject = f"Nyheter helse/velferd — {timestamp.strftime('%d.%m.%Y %H:%M')}"
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = GMAIL_USER
     msg["To"] = ", ".join(recipients)
     msg.attach(MIMEText(build_plain(result, timestamp), "plain", "utf-8"))
-    msg.attach(MIMEText(build_html(result, timestamp, images), "html", "utf-8"))
+    msg.attach(MIMEText(build_html(result, timestamp, images, ingreses), "html", "utf-8"))
     with smtplib.SMTP("smtp.gmail.com", 587) as smtp:
         smtp.starttls()
         smtp.login(GMAIL_USER, GMAIL_APP_PASSWORD)
@@ -329,7 +350,8 @@ def main() -> None:
         n_img = sum(1 for a in articles if a.get("image_url"))
         print(f"  {name}: {len(articles)} saker ({n_img} med bilde)", flush=True)
 
-    images = {a["url"]: a["image_url"] for a in all_articles if a.get("image_url")}
+    images   = {a["url"]: a["image_url"] for a in all_articles if a.get("image_url")}
+    ingreses = {a["url"]: a["ingress"]   for a in all_articles if a.get("ingress")}
 
     if not all_articles:
         log("Ingen saker funnet — avslutter uten å sende.")
@@ -340,7 +362,7 @@ def main() -> None:
     n_relevant = len(result.get("saker", []))
     log(f"Claude valgte {n_relevant} relevante saker. Sender e-post til {recipients}...")
 
-    send_email(recipients, result, now, images)
+    send_email(recipients, result, now, images, ingreses)
     log("E-post sendt.")
 
 
