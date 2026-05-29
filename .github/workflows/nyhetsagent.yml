@@ -1,10 +1,10 @@
 name: Nyhetsagent
 
 on:
-  schedule:
-    # 09:00 Oslo-tid (CEST = UTC+2, gjeldende mars–oktober)
-    - cron: '0 7 * * *'
-  workflow_dispatch: # Tillat manuell kjøring fra GitHub
+  # schedule:
+  #   # 09:00 Oslo-tid (CEST = UTC+2, gjeldende mars–oktober)
+  #   - cron: '0 7 * * *'
+  # workflow_dispatch: # Tillat manuell kjøring fra GitHub
 
 jobs:
   send-news:
@@ -24,7 +24,7 @@ jobs:
       - name: Sett opp Node.js (for Claude CLI)
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - name: Installer Claude CLI
         run: npm install -g @anthropic-ai/claude-code
@@ -32,7 +32,7 @@ jobs:
       - name: Sett opp Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.13'
+          python-version: "3.13"
 
       - name: Installer Python-avhengigheter
         run: pip install -r requirements.txt
